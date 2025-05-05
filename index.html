@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NC Maternal Health Map</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- CSS Libraries -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.1/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-geosearch@3.11.0/dist/geosearch.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    <!-- INLINE Custom CSS -->
+    <style>
+        /* --- Base & Font --- */
+        html, body {
+            height: 100%; margin: 0; padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f4;
+        }
+        body { display: flex; flex-direction: column; }
+        #map { flex-grow: 1; width: 100%; position: relative; }
+
+        /* --- Consistent Control Styling (Interactive Controls) --- */
+        .leaflet-control:not(.leaflet-control-attribution) {
+            background-color: rgba(255, 255, 255, 0.96) !important;
+            border: 1px solid #bbb !important; border-radius: 5px !important;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.2) !important;
+            margin: 8px !important; margin-bottom: 10px !important;
+            padding: 6px 8px; line-height: 1.4; clear: both;
+        }
+        .leaflet-control:not(:last-child):not(.leaflet-control-attribution) { margin-bottom: 10px !important; }
+        .leaflet-control-container .leaflet-control { clear: both; }
+        .leaflet-bar, .info-button-container.leaflet-control {
+            padding: 0 !important; background-color: transparent !important;
+            border: none !important; box-shadow: none !important;
+        }
+
+        /* --- Specific Control Positions & Refinements --- */
+        .map-title-control { padding: 6px 12px; font-size: 1.2em; font-weight: bold; color: #333; pointer-events: none; }
+        .map-title-control h3 { margin: 0; padding: 0; font-weight: 600;}
+        .leaflet-control-zoom { margin-top: 0 !important; }
+         .leaflet-bar a, .leaflet-bar a:hover {
+             width: 32px !important; height: 32px !important; line-height: 32px !important; font-size: 1.4em !important;
+             color: #333 !important; background-color: rgba(255, 255, 255, 0.96) !important; display: block;
+             border: 1px solid #bbb !important; box-shadow: 0 1px 5px rgba(0,0,0,0.2); margin-bottom: 1px;
+         }
+         .leaflet-bar a:first-child { border-radius: 5px 5px 0 0; }
+         .leaflet-bar a:last-child { border-radius: 0 0 5px 5px; margin-bottom: 0; border-top: none; }
+         .leaflet-bar a:hover { background-color: #f4f4f4 !important; }
+
+        /* Top Right: Search Bar */
+        .leaflet-top.leaflet-right { max-width: 280px; }
+        .leaflet-control-geosearch { padding: 0 !important; position: relative; }
+        .leaflet-control-geosearch.leaflet-control { background-color: rgba(255, 255, 255, 0.96) !important; }
+         .leaflet-control-geosearch form { border-radius: 8px; border: none; background-color: white; display: flex; align-items: center; }
+         .leaflet-control-geosearch form input { font-size: 13px; padding: 7px 10px; border: none; background: none; border-radius: 5px 0 0 5px; flex-grow: 1; height: 34px; box-sizing: border-box; }
+         .leaflet-control-geosearch a.glass { border-radius: 0 5px 5px 0; height: 34px; width: 34px; border-left: 1px solid #ccc; background-color: #fff; box-shadow: none; transition: background-color 0.2s ease; box-sizing: border-box; }
+          .leaflet-control-geosearch a.glass:hover { background-color: #f4f4f4; }
+         .leaflet-control-geosearch a.reset { font-size: 1.2em; line-height: 34px; padding: 0 8px; color: #666; text-decoration: none; }
+          .leaflet-control-geosearch a.reset:hover { color: #333; }
+         .leaflet-control-geosearch .results {
+             background-color: rgba(255, 255, 255, 0.98); border: 1px solid #bbb; border-top: none;
+             border-radius: 0 0 5px 5px; position: absolute; top: 100%; left: 0; right: 0;
+             width: auto; z-index: 1001; box-shadow: 0 2px 5px rgba(0,0,0,0.15); margin-top: -1px;
+          }
+         .leaflet-control-geosearch .results > *, .leaflet-control-geosearch .results.active > * { max-height: 200px; overflow-y: auto; font-size: 13px; padding: 6px 10px; }
+         .leaflet-control-geosearch .results > *:not(:last-child) { border-bottom: 1px solid #eee; }
+         .geosearch-result-marker { text-align: center; color: #e67e22; pointer-events: none; opacity: 0.9; }
+
+        /* Bottom Left: Info Button */
+        .info-button-container a {
+            display: block; width: 32px; height: 32px; line-height: 32px !important; font-size: 1.5em;
+            color: #333 !important; background-color: rgba(255, 255, 255, 0.96) !important; text-align: center;
+            text-decoration: none; border-radius: 5px; border: 1px solid #bbb; box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+            transition: background-color 0.2s ease;
+        }
+        .info-button-container a:hover { background-color: #f4f4f4 !important; }
+
+        /* Bottom Right: Legend */
+        .legend { font-size: 12px; padding: 8px 10px; line-height: 1.5; max-height: 200px; overflow-y: auto; }
+        .legend strong { display: block; margin-bottom: 6px; font-size: 1.05em; font-weight: 600; color: #444; }
+        .legend-item { display: flex; align-items: center; margin-bottom: 4px; }
+        .legend i { width: 14px; height: 14px; margin-right: 6px; border: 1px solid #999; flex-shrink: 0; }
+
+        /* Popups */
+        .leaflet-popup-content-wrapper { border-radius: 12px; box-shadow: 0 1px 5px rgba(0,0,0,0.15); border: 1px solid #ccc; background: #fff; }
+        .leaflet-popup-content { font-size: 12px; line-height: 1.5; max-width: 260px; word-wrap: break-word; padding: 8px 12px; margin: 0; color: #333; }
+        .leaflet-popup-content b { display: block; margin-bottom: 4px; font-size: 1.1em; font-weight: 600; color: #111; border-bottom: 1px solid #eee; padding-bottom: 3px; }
+        .leaflet-popup-content p { margin: 2px 0; }
+        .distance-popup .leaflet-popup-content { font-size: 11px; padding: 6px 10px; }
+        .distance-popup .leaflet-popup-content b { font-size: 1.0em; border-bottom: none; margin-bottom: 2px; }
+        .distance-popup .leaflet-popup-content p { margin: 1px 0; }
+
+        /* Attribution Control Styling */
+        .leaflet-control-attribution {
+             background-color: rgba(255, 255, 255, 0.8) !important;
+             box-shadow: none !important; border: none !important;
+             padding: 2px 6px !important; font-size: 10px !important;
+             margin: 0 !important; color: #333;
+             white-space: nowrap !important; 
+         }
+
+        /* Scaled Clinic DivIcon */
+        .scaled-clinic-icon { text-align: center; white-space: nowrap; color: #a18cae; pointer-events: none; font-weight:900; }
+        .leaflet-div-icon { background: transparent; border: none; }
+
+        /* Marker Cluster Override */
+        .marker-cluster-small { background-color: rgba(180, 150, 190, 0.6); } .marker-cluster-small div { background-color: rgba(150, 120, 160, 0.7); }
+        .marker-cluster-medium { background-color: rgba(130, 90, 140, 0.6); } .marker-cluster-medium div { background-color: rgba(100, 60, 110, 0.7); }
+        .marker-cluster-large { background-color: rgba(80, 30, 90, 0.6); } .marker-cluster-large div { background-color: rgba(60, 10, 70, 0.7); }
+        .marker-cluster div span { color: white; font-weight: bold; text-shadow: 1px 1px 1px rgba(0,0,0,0.6); }
+
+        /* Info Modal Styles */
+        .info-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); display: none; justify-content: center; align-items: center; z-index: 1050; }
+        .info-modal-overlay.active { display: flex; }
+        .info-modal-content { background-color: #fff; padding: 25px 30px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; position: relative; }
+        .info-modal-content h3 { margin-top: 0; margin-bottom: 15px; color: #333; font-size: 1.5em; font-weight: 600; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        .info-modal-content p { margin-bottom: 12px; line-height: 1.6; color: #555; }
+        .info-modal-content strong { color: #333; }
+        .info-modal-close { position: absolute; top: 10px; right: 15px; font-size: 1.8em; font-weight: bold; color: #aaa; background: none; border: none; cursor: pointer; padding: 0 5px; line-height: 1; }
+        .info-modal-close:hover { color: #777; }
+
+        /* --- Responsive Adjustments --- */
+        @media (max-width: 768px) {
+             .map-title-control { font-size: 1.0em; padding: 5px 10px;}
+             .leaflet-control:not(.leaflet-control-attribution) { padding: 5px 7px; font-size: 0.9em; }
+             .legend { max-width: 170px; }
+             .leaflet-popup-content { font-size: 11px; padding: 6px 10px; }
+             .leaflet-popup-content-wrapper { border-radius: 10px; }
+             .info-modal-content { max-width: 90%; padding: 20px; }
+             .info-modal-content h3 { font-size: 1.3em;}
+             .leaflet-control-attribution { font-size: 9px !important; padding: 1px 4px !important;}
+        }
+        @media (max-width: 480px) {
+             .legend { max-width: 130px; max-height: 140px; line-height: 1.3; }
+             .legend i { width: 12px; height: 12px; margin-right: 5px; }
+             .map-title-control { display: none; }
+             .info-button-container a { font-size: 1.3em; width: 30px; height: 30px; line-height: 30px !important;}
+             .leaflet-bar a, .leaflet-bar a:hover { width: 30px !important; height: 30px !important; line-height: 30px !important; }
+             .leaflet-popup-content { font-size: 10px; padding: 5px 8px; }
+             .leaflet-popup-content-wrapper { border-radius: 8px; }
+             .leaflet-popup-content b { font-size: 1.0em; }
+             .leaflet-control-geosearch form input { max-width: 100px; }
+             .leaflet-control-geosearch .results { max-width: calc(100vw - 20px); }
+             .info-modal-content { width: 95%; max-height: 85vh; padding: 15px;}
+             .info-modal-content h3 { font-size: 1.2em; }
+             .info-modal-close { font-size: 1.6em; }
+             .leaflet-control-attribution { font-size: 8px !important; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<!-- Info Modal Structure -->
+<div id="infoModalOverlay" class="info-modal-overlay">
+    <div class="info-modal-content">
+        <button id="infoModalClose" class="info-modal-close" title="Close">×</button>
+        <h3>About This Map</h3>
+        <p>This map displays county-level fetal death rates (choropleth background) and the locations of maternal health providers (markers) across North Carolina.</p>
+        <p>Use the search bar to find an address and calculate the distance to the nearest provider shown on the map.</p>
+        <p><strong>Data Sources:</strong> <a href="https://schs.dph.ncdhhs.gov/data/databook/">County fetal death data 2019-2023</a>, Provider location data from the <a href="https://npiregistry.cms.hhs.gov/search">NPPES NPI Registry.</a></p>
+        <p><strong>Note:</strong> Provider data may not be exhaustive. Map is for informational purposes only.</p>
+    </div>
+</div>
+
+<!-- JS Libraries -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.1/dist/leaflet.markercluster.js"></script>
+<script src='https://unpkg.com/@turf/turf@6/turf.min.js'></script>
+<script src="https://unpkg.com/leaflet-geosearch@3.11.0/dist/geosearch.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.4.2/chroma.min.js" integrity="sha512-zInFF17qBFVvvvFpIfeBzo7Tj7+rQxLeTJDmbxjBz5/zIr89YVbTNelNhdTT+/DCrxoVzBeUPVFJsczKbB7sew==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+
+<script>
+
+    // --- Map Initialization ---
+    const map = L.map('map', {
+        zoomControl: false,
+        attributionControl: true 
+    }).setView([35.5, -79.5], 7);
+
+    // --- Global variables ---
+    let geojsonCountyLayerRef = null;
+    let legendControl = null;
+    let clinicData = null;
+    let nearestLine = null;
+
+    // --- Map Constants ---
+    const COUNTY_FILL_OPACITY = 0.50; 
+
+    // --- Base Layer ---
+    const positron = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+         attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a> | <a href="https://schs.dph.ncdhhs.gov/data/databook/">NCDHHS</a> | <a href="https://npiregistry.cms.hhs.gov/search">NPPES</a>',
+         subdomains: 'abcd',
+         maxZoom: 20
+    }).addTo(map);
+
+    // --- Layer Groups ---
+    const countyLayerGroup = L.layerGroup().addTo(map);
+    const clinicLayerGroup = L.markerClusterGroup({
+        chunkedLoading: true,
+        maxClusterRadius: 60,
+        disableClusteringAtZoom: 15 
+    }).addTo(map);
+
+    // --- Color Scales & Breaks ---
+    const naColor = '#bdbdbd'; 
+    const rateBreaks = [0, 1, 4, 6, 8, 10]; 
+    const rateColors = chroma.scale([
+        '#fee5d9', '#fcae91', '#fb6a4a', '#de2d26', '#a50f15'
+    ]).domain(rateBreaks).classes(rateBreaks);
+
+    // --- Choropleth Layer (Counties) ---
+    function getCountyColor(value) {
+        const numValue = Number(value);
+        if (value === null || value === undefined || isNaN(numValue)) return naColor;
+        return rateColors(numValue).hex();
+    }
+
+    // Define visual style for counties
+    function styleCounty(feature) {
+        const value = feature.properties.DeathRate;
+        return {
+            fillColor: getCountyColor(value), 
+            weight: 1,                      
+            opacity: 1,                  
+            color: '#666',                 
+            fillOpacity: COUNTY_FILL_OPACITY,
+            interactive: false               
+        };
+    }
+
+    function onEachCountyFeature(feature, layer) {}
+
+    // Fetch county GeoJSON data and add to map
+    fetch('assets/nc_counties_choropleth_final.geojson')
+        .then(response => {
+            if (!response.ok) throw new Error(`Fetch Error: ${response.status}`);
+            return response.json();
+        })
+        .then(data => {
+            geojsonCountyLayerRef = L.geoJSON(data, {
+                style: styleCounty,
+                onEachFeature: onEachCountyFeature
+            });
+            countyLayerGroup.addLayer(geojsonCountyLayerRef); 
+        })
+
+
+    // --- Clinic Points Layer ---
+    // Calculates icon size based on number of providers at location
+    function getClinicIconSize(count) {
+        const numCount = Number(count);
+        if (isNaN(numCount) || numCount <= 0) return 14; 
+        const baseSize = 14;
+        const maxSize = 40; // Max icon size
+        const increment = 2.5; // increase size per provider
+        return Math.min(maxSize, baseSize + (increment * numCount));
+    }
+
+    // Creates a custom marker icon with scaled size
+    function createScaledClinicMarker(feature, latlng) {
+        const count = feature.properties.popup_count;
+        const iconSize = getClinicIconSize(count);
+        const faIconClass = "fa-solid fa-hospital"; 
+        // Define a divIcon using HTML
+        const clinicIcon = L.divIcon({
+            html: `<i class="${faIconClass}" style="font-size: ${iconSize}px; line-height: ${iconSize}px;"></i>`,
+            className: 'scaled-clinic-icon', 
+            iconSize: [iconSize + 4, iconSize + 4], 
+            iconAnchor: [(iconSize + 4) / 2, (iconSize + 4) / 2] 
+        });
+        return L.marker(latlng, { icon: clinicIcon });
+    }
+
+    // Fetch clinic GeoJSON data and add markers to map
+    fetch('assets/clinics.geojson')
+        .then(response => {
+            if (!response.ok) throw new Error(`Fetch Error: ${response.status}`);
+            return response.json();
+        })
+        .then(data => {
+            clinicData = data; 
+                      const geojsonClinics = L.geoJSON(data, {
+                pointToLayer: createScaledClinicMarker,
+                onEachFeature: function (feature, layer) {
+                             let popupContent = `<b>Maternal Health Provider Location</b>`;
+                    popupContent += `<p>Providers at Address: ${feature.properties.popup_count || 'N/A'}</p>`;
+                    layer.bindPopup(popupContent);
+                }
+            });
+            // Add clinic markers to the marker cluster group
+            clinicLayerGroup.addLayer(geojsonClinics);
+        })
+
+    // --- Controls ---
+
+
+    // Add Map Title
+    const titleControl = L.control({ position: 'topleft' });
+    titleControl.onAdd = function (map) {
+        const div = L.DomUtil.create('div', 'leaflet-control map-title-control');
+        div.innerHTML = '<h3>NC Maternal Health</h3>';
+        L.DomEvent.disableClickPropagation(div); 
+        return div;
+    };
+    titleControl.addTo(map);
+
+    // Add Zoom Control
+    L.control.zoom({ position: 'topleft' }).addTo(map);
+
+
+    // Info Button 
+    const infoButtonControl = L.control({ position: 'bottomleft' });
+    infoButtonControl.onAdd = function (map) {
+        const div = L.DomUtil.create('div', 'info-button-container leaflet-control');
+        div.innerHTML = '<a href="#" role="button" title="More Information">ℹ️</a>';
+        // Prevent map interactions when clicking the button
+        L.DomEvent.disableClickPropagation(div);
+        L.DomEvent.disableScrollPropagation(div);
+        // Get references to modal elements in the HTML
+        const modalOverlay = document.getElementById('infoModalOverlay');
+        const closeButton = document.getElementById('infoModalClose');
+        // Show modal when info button link is clicked
+        L.DomEvent.on(div.querySelector('a'), 'click', function (ev) {
+            L.DomEvent.stop(ev); 
+            if (modalOverlay) modalOverlay.classList.add('active'); 
+        });
+       
+        if (closeButton) {
+            closeButton.onclick = function () {
+                if (modalOverlay) modalOverlay.classList.remove('active');
+            };
+        }
+      
+        if (modalOverlay) {
+            modalOverlay.onclick = function (event) {
+                if (event.target === modalOverlay) {
+                    modalOverlay.classList.remove('active');
+                }
+            };
+        }
+        return div;
+    };
+    infoButtonControl.addTo(map);
+
+
+ 
+    // GeoSearch Control Configuration
+    const ncViewBox = "-84.5,33.5,-75.0,37.0"; // Bounding box for NC to prioritize results
+    const searchResultIcon = L.divIcon({
+        html: '<i class="fa-solid fa-location-dot" style="font-size: 28px; color: #e67e22;"></i>',
+        className: 'geosearch-result-marker',
+        iconSize: [28, 28],
+        iconAnchor: [14, 28] 
+    });
+    const searchProvider = new GeoSearch.OpenStreetMapProvider({
+        params: { viewbox: ncViewBox, bounded: 1, countrycodes: 'us' },
+    });
+    // Create and add the search control
+    const searchControl = new GeoSearch.GeoSearchControl({
+        provider: searchProvider,
+        position: 'topright',
+        style: 'bar',                 
+        showMarker: true,             
+        marker: { icon: searchResultIcon, draggable: false }, 
+        showPopup: false,             
+        autoClose: true,              
+        searchLabel: 'Search address in NC...', 
+        keepResult: true,           
+      
+        resultFormat: ({ result }) => result.label.includes(', NC') ? result.label.split(', NC')[0] + ', NC' : result.label,
+        updateMap: true             
+    });
+    map.addControl(searchControl);
+
+
+     // Function to create and add the map legend
+    function createLegend() {
+
+
+        legendControl = L.control({ position: 'bottomright' });
+        legendControl.onAdd = function (map) {
+            const div = L.DomUtil.create('div', 'leaflet-control legend');
+            const grades = rateBreaks;     
+            const scale = rateColors;      
+            const title = "Fetal Death Rate<br>(per 1,000 births)"; 
+            const labels = [];        
+
+            div.innerHTML = `<strong>${title}</strong>`; // Add title to legend div
+
+            // Loop through each rate break to create legend item
+            for (let i = 0; i < grades.length; i++) {
+                const from = grades[i];
+                const to = grades[i + 1];
+                // Get color from scale and apply map's fill opacity
+                const colorObject = scale(from); // Get Chroma color object
+                const rgbaColor = colorObject.alpha(COUNTY_FILL_OPACITY).css(); // Get RGBA color string
+
+                // Format the label text based on category
+                let labelText = '';
+                if (i === 0) { // First category label
+                    labelText = '<1.0';
+                } else if (to) { // Intermediate categories
+                    labelText = `${from.toFixed(1)}–${to.toFixed(1)}`;
+                } else { // Last category (e.g., 10+)
+                    labelText = `${from.toFixed(1)}+`;
+                }
+                // Add the item HTML to the labels array
+                labels.push(`<div class="legend-item"><i style="background:${rgbaColor}"></i> ${labelText}</div>`);
+            }
+
+            div.innerHTML += labels.join('');
+            return div;
+        };
+        legendControl.addTo(map);
+    }
+    // Create the legend when the script runs
+    createLegend();
+
+
+    // --- Address Search & Distance Calculation ---
+    // Function to find the nearest clinic to a given LatLng point
+    function findNearestClinic(targetLatLng) {
+        // Check if necessary data/library is available
+
+        // Remove previous distance line if it exists
+        if (nearestLine) map.removeLayer(nearestLine);
+
+        // Create Turf.js point feature for the searched location
+        const targetPoint = turf.point([targetLatLng.lng, targetLatLng.lat]);
+        // Ensure clinic data is a valid FeatureCollection for Turf.js
+        const clinicFeatureCollection = turf.featureCollection(clinicData.features);
+        // Find the closest clinic feature
+        const nearestClinicFeature = turf.nearestPoint(targetPoint, clinicFeatureCollection);
+
+        if (nearestClinicFeature) {
+            // Get LatLng of the nearest clinic
+            const clinicLatLng = L.latLng(
+                nearestClinicFeature.geometry.coordinates[1], // Latitude
+                nearestClinicFeature.geometry.coordinates[0]  // Longitude
+            );
+            // Calculate distance using Turf.js (Haversine formula)
+            const distance = turf.distance(targetPoint, nearestClinicFeature, { units: 'miles' });
+
+            // Draw a dashed line between searched point and nearest clinic
+            nearestLine = L.polyline([targetLatLng, clinicLatLng], {
+                color: '#007bff', // Blue color
+                weight: 3,
+                dashArray: '5, 5' // Dashed line style
+            }).addTo(map);
+
+            // Create popup content for the distance result
+            let popupContent = `<b>Nearest Clinic Distance</b>`;
+            popupContent += `<p>Approx. <b>${distance.toFixed(1)} miles</b></p>`;
+
+            // Find the marker corresponding to the search result
+            let searchMarker = null;
+            map.eachLayer(layer => {
+                // Check if the layer is the specific search result marker at the target location
+                if (layer.options && layer.options.icon &&
+                    layer.options.icon.options.className === 'geosearch-result-marker' &&
+                    layer.getLatLng().equals(targetLatLng)) {
+                    searchMarker = layer;
+                }
+            });
+
+            // Bind the distance popup to the search result marker if found
+            if (searchMarker) {
+                searchMarker.bindPopup(popupContent, { className: 'distance-popup' }).openPopup();
+            } else {
+                // Fallback: If search marker not found, open popup at the searched location
+                L.popup({ className: 'distance-popup' })
+                    .setLatLng(targetLatLng)
+                    .setContent(popupContent)
+                    .openOn(map);
+            }
+            // Adjust map view to fit both the searched point and the nearest clinic
+            map.fitBounds(L.latLngBounds(targetLatLng, clinicLatLng), { padding: [50, 50] }); 
+        } else {
+            // If no nearest clinic is found
+            L.popup()
+                .setLatLng(targetLatLng)
+                .setContent("No nearby clinics found in data.")
+                .openOn(map);
+        }
+    }
+
+    // --- Map Event Listeners ---
+    // Listen for GeoSearch location selection event
+    map.on('geosearch/showlocation', function (result) {
+        // Extract LatLng from the event and call findNearestClinic
+        findNearestClinic(L.latLng(result.location.y, result.location.x));
+    });
+
+    // Listen for GeoSearch marker being dragged or cleared
+    map.on('geosearch/marker/dragend geosearch/clear', function () {
+        // Remove the distance calculation line if it exists
+        if (nearestLine) {
+            map.removeLayer(nearestLine);
+            nearestLine = null;
+        }
+    });
+
+</script>
+
+</body>
+</html>
